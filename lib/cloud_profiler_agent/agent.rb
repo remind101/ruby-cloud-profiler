@@ -110,7 +110,6 @@ module CloudProfilerAgent
             delay *= 2 + rand / 2
             elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
             puts "Cloud Profiler agent encountered error after #{elapsed} seconds, will retry: #{e.inspect}"
-            binding.pry
           else
             delay = @min_iteration_time
           end
