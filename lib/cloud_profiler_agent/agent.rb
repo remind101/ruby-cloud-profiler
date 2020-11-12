@@ -36,6 +36,27 @@ module CloudProfilerAgent
       @profiler = Cloudprofiler::CloudProfilerService.new
       @profiler.authorization = Google::Auth.get_application_default(SCOPES)
 
+      # <https://github.com/googleapis/googleapis/blob/7e17784e6465431981f36806e6376d69de1fc424/google/devtools/cloudprofiler/v2/profiler.proto#L39-L45>
+      #
+      #   The request may fail with ABORTED error if the creation is not
+      #   available within ~1m, the response will indicate the duration of the
+      #   backoff the client should take before attempting creating a profile
+      #   again. The backoff duration is returned in google.rpc.RetryInfo
+      #   extension on the response status. To a gRPC client, the extension
+      #   will be return as a binary-serialized proto in the trailing metadata
+      #   item named "google.rpc.retryinfo-bin".
+      #
+      # Unfortunately, it's unclear how this maps to the JSON API as used by
+      # Google::Apis. However, emperical testing shows timeouts significantly
+      # greater than one minute work as expected, with create_profile()
+      # eventually returning successfully. Google::Apis has some retry and
+      # backoff logic, so lets just assume it works and give it plenty of time.
+      #
+      # If we don't increase the timeout, then it's pretty easy to hit rate
+      # limits with a large fleet of processes each retrying every minute.
+
+      @profiler.client_options.read_timeout_sec = 60 * 60
+
       # the minimum and maximum time between iterations of the profiler loop,
       # in seconds. Normally the Cloud Profiler API tells us how fast to go,
       # but we back off in case of error.
@@ -48,7 +69,11 @@ module CloudProfilerAgent
     def create_profile
       req = Cloudprofiler::CreateProfileRequest.new(deployment: deployment, profile_type: PROFILE_TYPES.keys)
       debug_log('creating profile')
-      @profiler.create_profile("projects/#{deployment.project_id}", req)
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      profile = @profiler.create_profile("projects/#{deployment.project_id}", req)
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+      debug_log("got profile after #{elapsed} seconds")
+      profile
     end
 
     def update_profile(profile)
@@ -83,7 +108,9 @@ module CloudProfilerAgent
             profile_and_upload(profile)
           rescue StandardError => e
             delay *= 2 + rand / 2
-            puts "Cloud Profiler agent encountered error, will retry: #{e}"
+            elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+            puts "Cloud Profiler agent encountered error after #{elapsed} seconds, will retry: #{e.inspect}"
+            binding.pry
           else
             delay = @min_iteration_time
           end
