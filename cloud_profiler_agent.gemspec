@@ -16,6 +16,7 @@ Gem::Specification.new do |spec|
   spec.files         = ['lib/profile_pb.rb',
                         'lib/cloud_profiler_agent.rb',
                         'lib/cloud_profiler_agent/agent.rb',
+                        'lib/cloud_profiler_agent/looper.rb',
                         'lib/cloud_profiler_agent/pprof_builder.rb']
 
   spec.add_runtime_dependency 'google-api-client', '~> 0.49'

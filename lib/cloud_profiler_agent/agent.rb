@@ -47,21 +47,12 @@ module CloudProfilerAgent
       #   item named "google.rpc.retryinfo-bin".
       #
       # Unfortunately, it's unclear how this maps to the JSON API as used by
-      # Google::Apis. However, emperical testing shows timeouts significantly
-      # greater than one minute work as expected, with create_profile()
-      # eventually returning successfully. Google::Apis has some retry and
-      # backoff logic, so lets just assume it works and give it plenty of time.
+      # Google::Apis. Some guess is made: see Looper#backoff_duration.
       #
-      # If we don't increase the timeout, then it's pretty easy to hit rate
-      # limits with a large fleet of processes each retrying every minute.
-
-      @profiler.client_options.read_timeout_sec = 60 * 60
-
-      # the minimum and maximum time between iterations of the profiler loop,
-      # in seconds. Normally the Cloud Profiler API tells us how fast to go,
-      # but we back off in case of error.
-      @min_iteration_time = 10
-      @max_iteration_time = 60 * 60
+      # However, emperical testing shows that if what appears to be this
+      # throttling message occurs, it happens as late as 230 seconds, not 1
+      # minute as the documentation suggests. So, we must increase the timeout.
+      @profiler.client_options.read_timeout_sec = 300
     end
 
     attr_reader :service, :project_id, :labels, :deployment, :profile_labels
@@ -100,23 +91,9 @@ module CloudProfilerAgent
       return if !@thread.nil? && @thread.alive?
 
       @thread = Thread.new do
-        delay = @min_iteration_time
-        loop do
-          start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          begin
-            profile = create_profile
-            profile_and_upload(profile)
-          rescue StandardError => e
-            delay *= 2 + rand / 2
-            elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-            puts "Cloud Profiler agent encountered error after #{elapsed} seconds, will retry: #{e.inspect}"
-          else
-            delay = @min_iteration_time
-          end
-
-          elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
-          delay = [delay, @max_iteration_time].min
-          sleep([0, delay - elapsed].max)
+        Looper.new(debug_logging: @debug_logging).run do
+          profile = create_profile
+          profile_and_upload(profile)
         end
       end
     end
