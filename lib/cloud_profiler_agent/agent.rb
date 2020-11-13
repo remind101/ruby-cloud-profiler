@@ -102,7 +102,8 @@ module CloudProfilerAgent
 
     def profile(duration, mode)
       start_time = Time.now
-      stackprof = StackProf.run(mode: mode, raw: true) do
+      # interval is in microseconds for :cpu and :wall, number of allocations for :object
+      stackprof = StackProf.run(mode: mode, raw: true, interval: 1000) do
         sleep(duration)
       end
 
