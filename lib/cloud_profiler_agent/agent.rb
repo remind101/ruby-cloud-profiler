@@ -117,7 +117,10 @@ module CloudProfilerAgent
     end
 
     def debug_log(message)
-      puts(message) if @debug_logging
+      return unless @debug_logging
+      timestamp = Time.now.utc.to_f
+      $stdout.puts("[CloudProfilerAgent] #{message} timestamp=#{timestamp}")
+      $stdout.flush
     end
   end
 end
