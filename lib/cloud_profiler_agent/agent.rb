@@ -93,14 +93,14 @@ module CloudProfilerAgent
       @thread = Thread.new do
         Looper.new(debug_logging: @debug_logging).run do
           profile = create_profile
-          profile_and_upload(profile)
+          capture_profile_and_upload(profile)
         end
       end
     end
 
     private
 
-    def profile(duration, mode)
+    def capture_profile(duration, mode)
       start_time = Time.now
       # interval is in microseconds for :cpu and :wall, number of allocations for :object
       stackprof = StackProf.run(mode: mode, raw: true, interval: 1000) do
@@ -110,9 +110,9 @@ module CloudProfilerAgent
       CloudProfilerAgent::PprofBuilder.convert_stackprof(stackprof, start_time, Time.now)
     end
 
-    def profile_and_upload(profile)
+    def capture_profile_and_upload(profile)
       debug_log("profiling #{profile.profile_type} for #{profile.duration}")
-      profile.profile_bytes = profile(parse_duration(profile.duration), PROFILE_TYPES.fetch(profile.profile_type))
+      profile.profile_bytes = capture_profile(parse_duration(profile.duration), PROFILE_TYPES.fetch(profile.profile_type))
       update_profile(profile)
     end
 
