@@ -12,17 +12,23 @@ module CloudProfilerAgent
     'WALL' => :wall,
     'HEAP_ALLOC' => :object
   }.freeze
+  DEFAULT_INTERVAL = {
+    :cpu => 1000,
+    :wall => 1000,
+    :object => 1000,
+  }.freeze
   SERVICE_REGEXP = /^[a-z]([-a-z0-9_.]{0,253}[a-z0-9])?$/.freeze
   SCOPES = ['https://www.googleapis.com/auth/cloud-platform'].freeze
 
   # Agent interfaces with the CloudProfiler API.
   class Agent
-    def initialize(service:, project_id:, service_version: nil, debug_logging: false, instance: nil, zone: nil)
+    def initialize(service:, project_id:, service_version: nil, debug_logging: false, instance: nil, zone: nil, interval: {})
       raise ArgumentError, "service must match #{SERVICE_REGEXP}" unless SERVICE_REGEXP =~ service
 
       @service = service
       @project_id = project_id
       @debug_logging = debug_logging
+      @interval = DEFAULT_INTERVAL.merge(interval)
 
       @labels = { language: 'ruby' }
       @labels[:version] = service_version unless service_version.nil?
@@ -103,7 +109,7 @@ module CloudProfilerAgent
     def capture_profile(duration, mode)
       start_time = Time.now
       # interval is in microseconds for :cpu and :wall, number of allocations for :object
-      stackprof = StackProf.run(mode: mode, raw: true, interval: 1000) do
+      stackprof = StackProf.run(mode: mode, raw: true, interval: @interval[mode]) do
         sleep(duration)
       end
 
