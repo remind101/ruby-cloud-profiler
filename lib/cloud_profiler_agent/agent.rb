@@ -108,11 +108,18 @@ module CloudProfilerAgent
 
     def capture_profile(duration, mode)
       start_time = Time.now
-      # interval is in microseconds for :cpu and :wall, number of allocations for :object
-      stackprof = StackProf.run(mode: mode, raw: true, interval: @interval[mode]) do
-        sleep(duration)
+
+      sampling_thread = Thread.new do
+        Timeout::timeout(duration * 1.2) do
+          # interval is in microseconds for :cpu and :wall, number of allocations for :object
+          StackProf.run(mode: mode, raw: true, interval: @interval[mode]) do
+            sleep(duration)
+          end
+        end
       end
 
+      sampling_thread.join
+      stackprof = sampling_thread.value
       CloudProfilerAgent::PprofBuilder.convert_stackprof(stackprof, start_time, Time.now)
     end
 
