@@ -57,7 +57,7 @@ module CloudProfilerAgent
         rescue StandardError => e
           iteration_time *= @backoff_factor + @rander.call / 2
           elapsed = @clock.call - start_time
-          debug_log("Cloud Profiler agent encountered error after #{elapsed} seconds, will retry: #{e.inspect}")
+          debug_log("encountered error after #{elapsed} seconds, will retry: #{e.inspect}")
         else
           iteration_time = @min_iteration_sec
         end
@@ -88,7 +88,10 @@ module CloudProfilerAgent
     end
 
     def debug_log(message)
-      puts(message) if @debug_logging
+      return unless @debug_logging
+      timestamp = Time.now.utc.to_f
+      $stdout.puts("[CloudProfilerAgent] #{message} timestamp=#{timestamp}")
+      $stdout.flush
     end
   end
 end
