@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'google-api-client', '~> 0.49'
   spec.add_runtime_dependency 'googleauth', '~> 0.14'
   spec.add_runtime_dependency 'google-protobuf', '~> 3.13'
-  spec.add_runtime_dependency 'stackprof', '~> 0.2'
+  spec.add_runtime_dependency 'stackprof', github: 'remind101/stackprof'
 
   spec.add_development_dependency 'rspec', '~> 3.10'
   spec.add_development_dependency 'rubocop', '~> 1.2'
