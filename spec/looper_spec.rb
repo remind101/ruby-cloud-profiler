@@ -95,7 +95,7 @@ RSpec.describe CloudProfilerAgent::Looper do
       it 'goes to the maximum iteration time' do
         subject.run(2) do
           @now += 1
-          raise ::Google::Apis::ClientError.new('you are a bad client', status_code: 400)
+          raise ::Google::Cloud::InvalidArgumentError.new('you are a bad client')
         end
 
         expect(@sleeps).to eq([max_time - 1])
@@ -136,7 +136,6 @@ RSpec.describe CloudProfilerAgent::Looper do
   end
 
   def backoff_exception(duration)
-    message = "action throttled, backoff for #{duration}"
     body = "{
       \"error\": {
         \"code\": 409,
@@ -152,6 +151,6 @@ RSpec.describe CloudProfilerAgent::Looper do
       }
     }
     "
-    ::Google::Apis::ClientError.new(message, status_code: 409, body: body)
+    ::Google::Cloud::AlreadyExistsError.new(body) # AbortedError
   end
 end

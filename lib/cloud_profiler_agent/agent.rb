@@ -1,19 +1,18 @@
 # frozen_string_literal: true
 
-require 'google/apis/cloudprofiler_v2'
+require 'google/cloud/profiler/v2'
 require 'googleauth'
 require 'stackprof'
 
 module CloudProfilerAgent
-  Cloudprofiler = Google::Apis::CloudprofilerV2
+  Cloudprofiler = ::Google::Cloud::Profiler::V2
 
   PROFILE_TYPES = {
-    'CPU' => :cpu,
-    'WALL' => :wall,
-    'HEAP_ALLOC' => :object
+    :CPU => :cpu,
+    :WALL => :wall,
+    :HEAP_ALLOC => :object
   }.freeze
   SERVICE_REGEXP = /^[a-z]([-a-z0-9_.]{0,253}[a-z0-9])?$/.freeze
-  SCOPES = ['https://www.googleapis.com/auth/cloud-platform'].freeze
 
   # Agent interfaces with the CloudProfiler API.
   class Agent
@@ -33,8 +32,7 @@ module CloudProfilerAgent
       @profile_labels = {}
       @profile_labels[:instance] = instance unless instance.nil?
 
-      @profiler = Cloudprofiler::CloudProfilerService.new
-      @profiler.authorization = Google::Auth.get_application_default(SCOPES)
+      @profiler = Cloudprofiler::ProfilerService::Client.new
 
       # <https://github.com/googleapis/googleapis/blob/7e17784e6465431981f36806e6376d69de1fc424/google/devtools/cloudprofiler/v2/profiler.proto#L39-L45>
       #
@@ -52,7 +50,9 @@ module CloudProfilerAgent
       # However, emperical testing shows that if what appears to be this
       # throttling message occurs, it happens as late as 230 seconds, not 1
       # minute as the documentation suggests. So, we must increase the timeout.
-      @profiler.client_options.read_timeout_sec = 300
+      Cloudprofiler::ProfilerService::Client.configure do |config|
+        config.timeout = 300
+      end
     end
 
     attr_reader :service, :project_id, :labels, :deployment, :profile_labels
@@ -61,7 +61,7 @@ module CloudProfilerAgent
       req = Cloudprofiler::CreateProfileRequest.new(deployment: deployment, profile_type: PROFILE_TYPES.keys)
       debug_log('creating profile')
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      profile = @profiler.create_profile("projects/#{deployment.project_id}", req)
+      profile = @profiler.create_profile(req)
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
       debug_log("got profile after #{elapsed} seconds")
       profile
@@ -69,19 +69,8 @@ module CloudProfilerAgent
 
     def update_profile(profile)
       debug_log('updating profile')
-      @profiler.patch_project_profile(profile.name, profile)
+      @profiler.update_profile(profile: profile)
       debug_log('profile updated')
-    end
-
-    # parse_duration converts duration-as-a-string, as returned by the Profiler
-    # API, to a duration in seconds. Can't find any documentation on the format,
-    # and only have the single example "10s" to go on. If the duration can't be
-    # parsed then it returns 10.
-    def parse_duration(duration)
-      m = /^(\d+)s$/.match(duration)
-      return 10 if m.nil?
-
-      Integer(m[1])
     end
 
     # start will begin creating profiles in a background thread, looping
@@ -112,7 +101,7 @@ module CloudProfilerAgent
 
     def profile_and_upload(profile)
       debug_log("profiling #{profile.profile_type} for #{profile.duration}")
-      profile.profile_bytes = profile(parse_duration(profile.duration), PROFILE_TYPES.fetch(profile.profile_type))
+      profile.profile_bytes = profile(profile.duration.seconds, PROFILE_TYPES.fetch(profile.profile_type))
       update_profile(profile)
     end
 

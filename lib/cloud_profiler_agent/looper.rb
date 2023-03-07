@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'google/apis/errors'
+require 'google/cloud/profiler/v2'
 
 module CloudProfilerAgent
   # Looper is responsible for the main loop of the agent. It calls a
@@ -42,7 +42,7 @@ module CloudProfilerAgent
         iterations += 1
         begin
           yield
-        rescue ::Google::Apis::ClientError => e
+        rescue ::Google::Cloud::Error => e
           backoff = backoff_duration(e)
           if backoff.nil?
             iteration_time = @max_iteration_sec
